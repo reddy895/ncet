@@ -18,31 +18,32 @@ function ProfilePage() {
     <div className="min-h-screen relative flex flex-col">
       <TopBar />
 
-      <main className="flex-1 mx-auto max-w-5xl px-6 py-24 w-full relative z-10">
-        <header className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-8">
+      <main className="flex-1 px-12 md:px-20 py-24 w-full relative z-10">
+        <header className="flex flex-col md:flex-row md:items-end justify-between mb-24 gap-10">
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -40 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 1, ease: "circOut" }}
           >
-            <div className="flex items-center gap-2 mb-4">
-              <ShieldCheck className="h-4 w-4 text-bronze" />
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-bronze">Identity Verified</span>
+            <div className="flex items-center gap-3 mb-6">
+              <ShieldCheck className="h-5 w-5 text-espresso-deep animate-pulse" />
+              <span className="text-[11px] font-black uppercase tracking-[0.6em] text-espresso-deep opacity-40">Identity Verified & Secured</span>
             </div>
-            <h1 className="font-display text-5xl md:text-7xl font-black tracking-tight text-espresso-deep leading-none">Profile.</h1>
-            <p className="text-muted-foreground mt-4 text-lg font-medium opacity-60">Architecting your intentional information stream.</p>
+            <h1 className="font-display text-7xl md:text-9xl font-black tracking-tighter text-espresso-deep leading-[0.8] mb-6">Profile.</h1>
+            <p className="text-espresso-mid text-xl font-medium opacity-50 max-w-2xl leading-relaxed">Architecting your intentional information stream and professional identity.</p>
           </motion.div>
           
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-3"
+            transition={{ delay: 0.3 }}
+            className="flex items-center gap-4"
           >
-            <button className="glass rounded-2xl px-6 py-3 text-[11px] font-black uppercase tracking-widest text-espresso-mid hover:bg-cream-light transition-all cinematic-shadow active:scale-95">
-              Sync Account
+            <button className="glass rounded-[2.5rem] px-10 py-5 text-[12px] font-black uppercase tracking-[0.2em] text-espresso-mid hover:bg-cream-light hover:shadow-xl transition-all active:scale-95">
+              Sync Neural Account
             </button>
-            <button className="grid h-12 w-12 place-items-center rounded-2xl bg-espresso-mid text-cream-light hover:scale-110 active:scale-90 transition-all shadow-xl magnetic-button">
-              <Settings className="h-5 w-5" />
+            <button className="grid h-16 w-16 place-items-center rounded-[2rem] bg-espresso-deep text-cream-light hover:scale-110 active:scale-90 transition-all shadow-2xl">
+              <Settings className="h-6 w-6" />
             </button>
           </motion.div>
         </header>

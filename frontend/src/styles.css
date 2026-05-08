@@ -175,6 +175,25 @@
   scrollbar-width: none;
 }
 
+/* ── Snap scroll feed ─────────────────────────────────────────── */
+.feed-scroll {
+  height: 100dvh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.feed-scroll::-webkit-scrollbar { display: none; }
+
+.feed-card {
+  height: 100dvh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  position: relative;
+  overflow: hidden;
+}
+
 .grain-overlay {
   position: fixed;
   inset: 0;

@@ -1,229 +1,382 @@
-import { useState, useEffect } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Bookmark, Share2, Sparkles, MessageSquare, Zap, ChevronUp, ChevronDown } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  Sparkles, PlusCircle, Loader2, AlertTriangle,
+  ExternalLink, Bookmark, Trash2, ChevronDown, ChevronUp,
+  List, Tag, Target, X, MessageSquare, Send, ChevronLeft, ChevronRight, Clock
+} from "lucide-react";
 import { TopBar } from "@/components/TopBar";
-import { ParallaxImage } from "@/components/ParallaxImage";
-import { motion, AnimatePresence, useScroll } from "framer-motion";
-import news1 from "@/assets/news-1.jpg";
-import news2 from "@/assets/news-2.jpg";
-import news3 from "@/assets/news-3.jpg";
-import news4 from "@/assets/news-4.jpg";
+import { motion, AnimatePresence } from "framer-motion";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Brewed — knowledge Distilled" },
-      { name: "description", content: "A calm intelligence layer between humans and information overload." },
+      { title: "Kairos — Intelligence Terminal" },
+      { name: "description", content: "Command and control for your digital life." },
     ],
   }),
   component: FeedPage,
 });
 
+const API_BASE = "";
+
 type Story = {
-  source: string;
-  title: string;
-  body: string;
-  meta: string;
-  image: string;
-  tag: string;
+  id: string; url: string; image: string; title: string;
+  summary: string; key_points: string[]; category: string;
+  sentiment: string; tags: string[]; topic: string | null;
+  relevant_to_topic: string | null; relevant_sections: string[] | null;
+  brewed_at: string;
 };
 
-const stories: Story[] = [
-  {
-    source: "Brewed Daily",
-    tag: "Tech",
-    title: "AI newsletters are quietly replacing the morning paper",
-    body: "A new wave of curation tools turns hour-long reading lists into 60-second scrolls. Editors call it 'concise journalism' — concentrated and intentional.",
-    meta: "2h ago · Brewed Editorial",
-    image: news1,
-  },
-  {
-    source: "City Wire",
-    tag: "World",
-    title: "Skylines glow as cities pilot 'golden hour' energy grids",
-    body: "Five megacities are timing peak-load to sunset, cutting emissions by up to 12%. Residents say the warm light makes the savings feel earned.",
-    meta: "4h ago · Reuters",
-    image: news2,
-  },
-  {
-    source: "The Slow Press",
-    tag: "Culture",
-    title: "Print is back — and it's reading like a novel again",
-    body: "Long-form weeklies are out-selling daily tabloids for the first time in a decade. Readers say they want fewer notifications and more paragraphs.",
-    meta: "Yesterday · The Slow Press",
-    image: news3,
-  },
-  {
-    source: "Brewed Markets",
-    tag: "Finance",
-    title: "Coffee futures hit a 9-year high as harvests dwindle",
-    body: "Climate volatility in Brazil and Vietnam pushes Arabica prices past $4/lb. Roasters warn your morning latte is about to taste a lot more expensive.",
-    meta: "6h ago · Bloomberg",
-    image: news4,
-  },
-];
+const sentimentEmoji: Record<string, string> = {
+  Positive: "🟢", Negative: "🔴", Neutral: "🟡",
+};
 
-const floatingInsights = [
-  "AI agents replacing workflows",
-  "Memory is the next moat",
-  "Open-source AI accelerating",
-  "Synthesizing cognitive load",
-];
+const categoryGradients: Record<string, string> = {
+  Tech:          "from-blue-900/80 via-blue-800/60 to-transparent",
+  News:          "from-slate-900/80 via-slate-800/60 to-transparent",
+  Science:       "from-emerald-900/80 via-emerald-800/60 to-transparent",
+  Politics:      "from-red-900/80 via-red-800/60 to-transparent",
+  Business:      "from-amber-900/80 via-amber-800/60 to-transparent",
+  Sports:        "from-green-900/80 via-green-800/60 to-transparent",
+  Entertainment: "from-purple-900/80 via-purple-800/60 to-transparent",
+  Other:         "from-stone-900/80 via-stone-800/60 to-transparent",
+};
 
-function StoryCard({ s, index }: { s: Story; index: number }) {
-  return (
-    <motion.article 
-      initial={{ opacity: 0, y: 30, filter: "blur(10px)" }}
-      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      viewport={{ once: true, margin: "-100px" }}
-      transition={{ duration: 0.8, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
-      className="group glass-card rounded-[2.5rem] overflow-hidden flex flex-col md:flex-row h-full md:h-[22rem] relative isolate"
-    >
-      <div className="w-full md:w-[40%] h-56 md:h-full relative overflow-hidden">
-        <ParallaxImage src={s.image} alt={s.title} />
-        <div className="absolute inset-0 bg-gradient-to-t from-espresso-deep/40 to-transparent opacity-60 group-hover:opacity-30 transition-opacity" />
-      </div>
+const fallbackBg: Record<string, string> = {
+  Tech:          "bg-gradient-to-br from-blue-950 to-blue-800",
+  News:          "bg-gradient-to-br from-slate-900 to-slate-700",
+  Science:       "bg-gradient-to-br from-emerald-950 to-teal-800",
+  Politics:      "bg-gradient-to-br from-red-950 to-rose-800",
+  Business:      "bg-gradient-to-br from-amber-950 to-amber-700",
+  Sports:        "bg-gradient-to-br from-green-950 to-green-700",
+  Entertainment: "bg-gradient-to-br from-purple-950 to-violet-800",
+  Other:         "bg-gradient-to-br from-stone-900 to-stone-700",
+};
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso + "Z").getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function StoryChat({ storyId, onClose }: { storyId: string; onClose: () => void }) {
+  const [msg, setMsg] = useState("");
+  const [chat, setChat] = useState<{ role: "user" | "ai"; text: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [chat]);
+
+  const send = async () => {
+    if (!msg.trim() || loading) return;
+    const userMsg = msg.trim();
+    setMsg("");
+    setChat(prev => [...prev, { role: "user", text: userMsg }]);
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ story_id: storyId, message: userMsg, stream: true }),
+      });
+
+      if (!response.body) throw new Error("No body");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
       
-      <div className="flex-1 p-8 md:p-10 flex flex-col justify-between relative">
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <motion.span 
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.5 + index * 0.1 }}
-              className="rounded-full bg-bronze/10 text-bronze text-[10px] font-black px-3 py-1 uppercase tracking-[0.15em] border border-bronze/10"
-            >
-              {s.tag}
-            </motion.span>
-            <span className="text-[11px] text-muted-foreground font-bold tracking-tight opacity-70 group-hover:opacity-100 transition-opacity">{s.source}</span>
-          </div>
-          
-          <h2 className="font-display text-2xl md:text-3xl font-bold leading-[1.1] text-espresso-mid group-hover:text-bronze transition-colors duration-500">
-            {s.title}
-          </h2>
-          
-          <p className="mt-4 text-sm md:text-base leading-relaxed text-muted-foreground line-clamp-2 md:line-clamp-3 opacity-80 group-hover:opacity-100 transition-opacity duration-500">
-            {s.body}
-          </p>
-        </div>
+      let aiResponse = "";
+      setChat(prev => [...prev, { role: "ai", text: "" }]);
+      setLoading(false);
 
-        <div className="mt-8 flex items-center justify-between border-t border-espresso-deep/5 pt-6">
-          <div className="flex items-center gap-4">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-black opacity-60">{s.meta}</span>
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n");
+        
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.text) {
+                aiResponse += data.text;
+                setChat(prev => {
+                  const last = prev[prev.length - 1];
+                  const others = prev.slice(0, -1);
+                  return [...others, { ...last, text: aiResponse }];
+                });
+              }
+              if (data.done) break;
+            } catch (e) { console.error(e); }
+          }
+        }
+      }
+    } catch {
+      setChat(prev => [...prev, { role: "ai", text: "Signal lost." }]);
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}
+      className="absolute bottom-24 right-5 z-50 w-[380px] h-[500px] flex flex-col rounded-[2.5rem] bg-black/60 backdrop-blur-3xl border border-white/10 overflow-hidden shadow-2xl shadow-black/50">
+      <div className="p-6 border-b border-white/10 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/50">Intelligence Agent</span>
+        </div>
+        <button onClick={onClose} className="text-white/40 hover:text-white"><X className="h-4 w-4" /></button>
+      </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+        {chat.map((c, i) => (
+          <div key={i} className={`flex ${c.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] rounded-[1.8rem] px-5 py-3.5 text-sm leading-relaxed ${
+              c.role === "user" ? "bg-white text-espresso-deep font-bold" : "bg-white/10 text-white/90"
+            }`}>{c.text}</div>
           </div>
-          
-          <div className="flex gap-2">
-            <button className="grid h-10 w-10 place-items-center rounded-full bg-cream-deep/30 hover:bg-bronze hover:text-white transition-all duration-500 magnetic-button border border-transparent hover:border-bronze/20 shadow-sm">
-              <Bookmark className="h-4 w-4" />
-            </button>
-            <button className="grid h-10 w-10 place-items-center rounded-full bg-cream-deep/30 hover:bg-bronze hover:text-white transition-all duration-500 magnetic-button border border-transparent hover:border-bronze/20 shadow-sm">
-              <Share2 className="h-4 w-4" />
-            </button>
-          </div>
+        ))}
+        {loading && <div className="bg-white/10 w-fit rounded-full px-5 py-3"><Loader2 className="h-4 w-4 animate-spin text-white/40" /></div>}
+      </div>
+      <div className="p-5 bg-white/5 border-t border-white/10">
+        <div className="relative flex items-center">
+          <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && send()}
+            placeholder="Query signal..." className="w-full bg-black/20 border border-white/10 rounded-2xl px-5 py-4 pr-14 text-sm text-white placeholder:text-white/20 outline-none focus:border-white/30 transition-all" />
+          <button onClick={send} className="absolute right-3 grid h-10 w-10 place-items-center rounded-xl bg-white text-espresso-deep"><Send className="h-4 w-4" /></button>
         </div>
       </div>
-    </motion.article>
+    </motion.div>
+  );
+}
+
+function RecentSignals({ stories, currentId, onSelect }: { stories: Story[]; currentId: string; onSelect: (idx: number) => void }) {
+  return (
+    <div className="w-80 h-full flex flex-col bg-black/40 backdrop-blur-3xl border-l border-white/10">
+      <div className="p-6 border-b border-white/10 flex items-center gap-3">
+        <Clock className="h-4 w-4 text-bronze" />
+        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/50">Recent Signals</span>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
+        {stories.map((s, i) => (
+          <button key={s.id} onClick={() => onSelect(i)}
+            className={`w-full text-left group p-3 rounded-2xl border transition-all ${
+              s.id === currentId ? "bg-white/10 border-white/20" : "border-transparent hover:bg-white/5"
+            }`}>
+            <p className="text-[9px] font-black uppercase tracking-widest text-bronze/60 mb-1">{s.category} · {timeAgo(s.brewed_at)}</p>
+            <h4 className={`text-xs font-bold leading-snug line-clamp-2 transition-colors ${
+              s.id === currentId ? "text-white" : "text-white/40 group-hover:text-white/70"
+            }`}>{s.title}</h4>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StorySlide({ s, index, total, isActive, onDelete }: {
+  s: Story; index: number; total: number; isActive: boolean; onDelete: (id: string) => void;
+}) {
+  const [imgError, setImgError] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const hasImage = s.image && !imgError;
+  const grad = categoryGradients[s.category] ?? categoryGradients.Other;
+  const bg   = fallbackBg[s.category] ?? fallbackBg.Other;
+  const domain = s.url !== "pasted-text"
+    ? (() => { try { return new URL(s.url).hostname.replace("www.", ""); } catch { return ""; } })()
+    : "Pasted Text";
+
+  return (
+    <div className={`feed-card ${!hasImage ? bg : ""}`}>
+      {hasImage && <img src={s.image} alt="" onError={() => setImgError(true)} className="absolute inset-0 w-full h-full object-cover" />}
+      <div className={`absolute inset-0 bg-gradient-to-t ${grad} via-40%`} />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/25" />
+
+      {/* Top bar */}
+      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-5 pt-5">
+        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/50">{index + 1} / {total}</span>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white/80">
+            <Tag className="h-2.5 w-2.5" />{s.category}
+          </span>
+          <span className="text-sm">{sentimentEmoji[s.sentiment] ?? "🟡"}</span>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {chatOpen && <StoryChat storyId={s.id} onClose={() => setChatOpen(false)} />}
+      </AnimatePresence>
+
+      {/* Content */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 px-5 pb-8 flex items-end justify-between">
+        <div className="flex-1">
+          <AnimatePresence mode="wait">
+            {!expanded ? (
+              <motion.div key="collapsed" initial={{ opacity: 0, y: 20 }} animate={{ opacity: isActive ? 1 : 0.6, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <p className="text-[11px] font-black uppercase tracking-[0.3em] text-bronze mb-3">{domain} · {timeAgo(s.brewed_at)}</p>
+                <h2 className="font-display text-3xl md:text-4xl font-black text-white leading-[1.1] mb-4 drop-shadow-lg">{s.title || s.url}</h2>
+                <p className="text-base text-white/80 leading-relaxed line-clamp-3 mb-4 max-w-2xl">{s.summary}</p>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setExpanded(true)} className="flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-md border border-white/20 px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-white/25 transition-all"><List className="h-3.5 w-3.5" /> Key Points</button>
+                  {s.url !== "pasted-text" && (
+                    <a href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-full bg-bronze/80 backdrop-blur-md border border-bronze/40 px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-bronze transition-all"><ExternalLink className="h-3.5 w-3.5" /> Read</a>
+                  )}
+                  <button onClick={() => onDelete(s.id)} className="grid h-9 w-9 place-items-center rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white/40 hover:bg-red-500/40 hover:text-white transition-all"><Trash2 className="h-3.5 w-3.5" /></button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div key="expanded" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                className="bg-black/55 backdrop-blur-xl rounded-3xl border border-white/10 p-6 max-w-2xl">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-bronze">Key Points</p>
+                  <button onClick={() => setExpanded(false)} className="text-white/50 hover:text-white text-xs font-bold uppercase tracking-widest">✕ Close</button>
+                </div>
+                <ul className="space-y-3">
+                  {s.key_points?.map((pt, i) => (
+                    <motion.li key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }} className="flex items-start gap-3 text-sm text-white/85 leading-relaxed">
+                      <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-bronze shrink-0" />{pt}
+                    </motion.li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+        <div className="flex flex-col items-center gap-3">
+          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setChatOpen(!chatOpen)}
+            className="grid h-16 w-16 place-items-center rounded-[2rem] bg-white text-espresso-deep shadow-2xl transition-all">
+            <MessageSquare className={`h-6 w-6 transition-transform duration-500 ${chatOpen ? "rotate-90" : ""}`} />
+          </motion.button>
+          <span className="text-[8px] font-black uppercase tracking-[0.4em] text-white/30">Intelligence</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyFeed() {
+  return (
+    <div className="feed-card bg-gradient-to-br from-espresso-deep to-espresso-mid flex flex-col items-center justify-center gap-6 text-center">
+      <Sparkles className="h-12 w-12 text-bronze animate-pulse" />
+      <h2 className="font-display text-4xl font-black text-white">Inbox Zero.</h2>
+      <Link to="/paste" className="flex items-center gap-2 rounded-full bg-bronze text-white px-8 py-4 text-xs font-black uppercase tracking-widest shadow-xl">
+        <PlusCircle className="h-5 w-5" /> Brew Signal
+      </Link>
+    </div>
   );
 }
 
 function FeedPage() {
-  const { scrollYProgress } = useScroll();
-  const [atBottom, setAtBottom] = useState(false);
-  const [atTop, setAtTop] = useState(true);
+  const [allStories, setAllStories] = useState<Story[]>([]);
+  const [stories,    setStories]    = useState<Story[]>([]);
+  const [allTags,    setAllTags]    = useState<string[]>([]);
+  const [activeTag,  setActiveTag]  = useState<string | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [current,    setCurrent]    = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [topBarVisible, setTopBarVisible] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastScrollTop = useRef(0);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const isAtBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 100;
-      const isAtTop = window.scrollY < 100;
-      setAtBottom(isAtBottom);
-      setAtTop(isAtTop);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+  const loadStories = useCallback(async () => {
+    try {
+      const [sRes, tRes] = await Promise.all([fetch(`${API_BASE}/api/stories`), fetch(`${API_BASE}/api/stories/tags`)]);
+      const sData = await sRes.json();
+      const tData = await tRes.json();
+      setAllStories(sData.stories || []);
+      setStories(sData.stories || []);
+      setAllTags(tData.tags || []);
+    } finally { setLoading(false); }
   }, []);
 
-  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
-  const scrollDown = () => window.scrollBy({ top: window.innerHeight * 0.8, behavior: "smooth" });
+  useEffect(() => { 
+    loadStories(); 
+    // Auto-sync with Backend every 10s
+    const interval = setInterval(loadStories, 10000);
+    return () => clearInterval(interval);
+  }, [loadStories]);
+
+  useEffect(() => {
+    if (activeTag) setStories(allStories.filter(s => s.tags?.includes(activeTag)));
+    else setStories(allStories);
+    setCurrent(0);
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [activeTag, allStories]);
+
+  const onScroll = () => {
+    if (!scrollRef.current) return;
+    const st = scrollRef.current.scrollTop;
+    const idx = Math.round(st / scrollRef.current.clientHeight);
+    if (idx !== current) setCurrent(idx);
+
+    // Hide topbar when scrolling up (into a card), show when scrolling down
+    if (st > lastScrollTop.current + 5) {
+      setTopBarVisible(false); // scrolling up through feed (top = 0 is top of page, increasing = going down visually)
+    } else if (st < lastScrollTop.current - 5) {
+      setTopBarVisible(true);
+    }
+    lastScrollTop.current = st;
+  };
+
+  const jumpTo = (idx: number) => {
+    const cards = scrollRef.current?.querySelectorAll(".feed-card");
+    if (cards?.[idx]) (cards[idx] as HTMLElement).scrollIntoView({ behavior: "smooth" });
+  };
+
+  if (loading) return <div className="h-screen flex items-center justify-center bg-espresso-deep"><Loader2 className="h-10 w-10 text-bronze animate-spin" /></div>;
 
   return (
-    <div className="relative isolate">
-      <TopBar />
-      
-      <main className="relative z-10">
-        {stories.map((s, i) => (
-          <section key={i} className="snap-item w-full">
-            <StoryCard s={s} index={i} />
-          </section>
-        ))}
-
-        {/* Floating Scroll Controls */}
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-full p-2 flex items-center gap-2 cinematic-shadow border border-white/20"
-          >
-            <AnimatePresence mode="wait">
-              {!atTop && (
-                <motion.button
-                  key="up"
-                  initial={{ opacity: 0, scale: 0.8, x: 10 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.8, x: 10 }}
-                  onClick={scrollToTop}
-                  className="grid h-12 w-12 place-items-center rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-espresso-mid hover:bg-white/40 transition-all magnetic-button"
-                >
-                  <ChevronUp className="h-5 w-5" />
-                </motion.button>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence mode="wait">
-              {!atBottom && (
-                <motion.button
-                  key="down"
-                  initial={{ opacity: 0, scale: 0.8, x: -10 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.8, x: -10 }}
-                  onClick={scrollDown}
-                  className="grid h-12 w-12 place-items-center rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-espresso-mid hover:bg-white/40 transition-all magnetic-button"
-                >
-                  <ChevronDown className="h-5 w-5" />
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </div>
-
-        {/* Floating Insights */}
-        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-          {floatingInsights.map((text, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 100 }}
-              animate={{ 
-                opacity: [0, 0.1, 0.1, 0],
-                y: [100, -200],
-                x: [0, (i % 2 === 0 ? 50 : -50)]
-              }}
-              transition={{ 
-                duration: 20 + i * 5, 
-                repeat: Infinity, 
-                ease: "linear",
-                delay: i * 4 
-              }}
-              style={{
-                position: 'absolute',
-                left: `${15 + i * 20}%`,
-                top: '60%',
-              }}
-              className="text-[10px] font-black uppercase tracking-[0.5em] text-espresso-mid whitespace-nowrap"
-            >
-              {text}
-            </motion.div>
+    <div className="relative h-screen overflow-hidden flex bg-black">
+      <div className="flex-1 relative h-full">
+        <motion.div
+          className="absolute top-0 left-0 right-0 z-50"
+          animate={{ y: topBarVisible ? 0 : "-100%" }}
+          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <TopBar />
+        </motion.div>
+        <div ref={scrollRef} onScroll={onScroll} className="feed-scroll">
+          {stories.length === 0 ? <EmptyFeed /> : stories.map((s, i) => (
+            <StorySlide key={s.id} s={s} index={i} total={stories.length} isActive={i === current} onDelete={async (id) => {
+              setAllStories(prev => prev.filter(st => st.id !== id));
+              await fetch(`${API_BASE}/api/stories/${id}`, { method: "DELETE" });
+            }} />
           ))}
         </div>
-      </main>
+
+        {/* Sidebar Toggle */}
+        <button onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-50 p-2 bg-white/10 backdrop-blur-md rounded-l-2xl border border-white/10 text-white/50 hover:text-white transition-all">
+          {sidebarOpen ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+        </button>
+
+        {/* Dot Indicators */}
+        <div className="absolute left-5 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2">
+          {stories.map((_, i) => (
+            <button key={i} onClick={() => jumpTo(i)} className={`rounded-full transition-all duration-300 ${i === current ? "h-6 w-1.5 bg-bronze" : "h-1.5 w-1.5 bg-white/30"}`} />
+          ))}
+        </div>
+      </div>
+
+      {/* Collapsible Sidebar */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
+            <RecentSignals stories={stories} currentId={stories[current]?.id} onSelect={jumpTo} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <Link to="/paste" className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full bg-bronze text-white px-8 py-4 text-[10px] font-black uppercase tracking-widest shadow-2xl hover:scale-105 transition-all">
+        <PlusCircle className="h-4 w-4" /> Brew
+      </Link>
     </div>
   );
 }

@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PasteRouteImport } from './routes/paste'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as EmailsRouteImport } from './routes/emails'
 import { Route as IndexRouteImport } from './routes/index'
 
 const ProfileRoute = ProfileRouteImport.update({
@@ -23,6 +25,16 @@ const PasteRoute = PasteRouteImport.update({
   path: '/paste',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmailsRoute = EmailsRouteImport.update({
+  id: '/emails',
+  path: '/emails',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,30 +43,38 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/emails': typeof EmailsRoute
+  '/login': typeof LoginRoute
   '/paste': typeof PasteRoute
   '/profile': typeof ProfileRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/emails': typeof EmailsRoute
+  '/login': typeof LoginRoute
   '/paste': typeof PasteRoute
   '/profile': typeof ProfileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/emails': typeof EmailsRoute
+  '/login': typeof LoginRoute
   '/paste': typeof PasteRoute
   '/profile': typeof ProfileRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/paste' | '/profile'
+  fullPaths: '/' | '/emails' | '/login' | '/paste' | '/profile'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/paste' | '/profile'
-  id: '__root__' | '/' | '/paste' | '/profile'
+  to: '/' | '/emails' | '/login' | '/paste' | '/profile'
+  id: '__root__' | '/' | '/emails' | '/login' | '/paste' | '/profile'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  EmailsRoute: typeof EmailsRoute
+  LoginRoute: typeof LoginRoute
   PasteRoute: typeof PasteRoute
   ProfileRoute: typeof ProfileRoute
 }
@@ -75,6 +95,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PasteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/emails': {
+      id: '/emails'
+      path: '/emails'
+      fullPath: '/emails'
+      preLoaderRoute: typeof EmailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -87,6 +121,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  EmailsRoute: EmailsRoute,
+  LoginRoute: LoginRoute,
   PasteRoute: PasteRoute,
   ProfileRoute: ProfileRoute,
 }
